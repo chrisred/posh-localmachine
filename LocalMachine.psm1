@@ -185,7 +185,7 @@ Function Get-LocalUser
 
     End
     {
-        $Context.Dispose()
+        # for cmdlets that can return an object don't dispose the Context so it is usable
     }
 }
 
@@ -231,37 +231,37 @@ Function Set-LocalUser
         [Parameter(ParameterSetName='RemotePath')]
         [ValidateLength(1,20)]
         [Alias('Name')]
-        [String]$SamAccountName = '__Null',
+        [String]$SamAccountName,
         [Parameter(ParameterSetName='LocalPath')]
         [Parameter(ParameterSetName='RemotePath')]
-        [String]$FullName = '__Null',
+        [String]$FullName,
         [Parameter(ParameterSetName='LocalPath')]
         [Parameter(ParameterSetName='RemotePath')]
-        [String]$Description = '__Null',
+        [String]$Description,
         [Parameter(ParameterSetName='LocalPath')]
         [Parameter(ParameterSetName='RemotePath')]
-        [String]$ProfilePath = '__Null',
+        [String]$ProfilePath,
         [Parameter(ParameterSetName='LocalPath')]
         [Parameter(ParameterSetName='RemotePath')]
-        [String]$LogonScript ='__Null',
+        [String]$LogonScript,
         [Parameter(ParameterSetName='LocalPath')]
-        [String]$HomeFolderLocalPath = '__Null',
+        [String]$HomeFolderLocalPath,
         [Parameter(Mandatory=$true,ParameterSetName='RemotePath')]
-        [String]$HomeFolderPath = '__Null',
+        [String]$HomeFolderPath,
         [Parameter(Mandatory=$true,ParameterSetName='RemotePath')]
-        [String]$HomeFolderDrive = '__Null',
+        [String]$HomeFolderDrive,
         [Parameter(ParameterSetName='LocalPath')]
         [Parameter(ParameterSetName='RemotePath')]
-        [Nullable[Bool]]$PasswordNeverExpires = $null,
+        [Bool]$PasswordNeverExpires,
         [Parameter(ParameterSetName='LocalPath')]
         [Parameter(ParameterSetName='RemotePath')]
-        [Nullable[Bool]]$UserCannotChangePassword = $null,
+        [Bool]$UserCannotChangePassword,
         [Parameter(ParameterSetName='LocalPath')]
         [Parameter(ParameterSetName='RemotePath')]
-        [Nullable[Bool]]$UserMustChangePasswordOnNextLogin = $null,
+        [Bool]$UserMustChangePasswordOnNextLogin,
         [Parameter(ParameterSetName='LocalPath')]
         [Parameter(ParameterSetName='RemotePath')]
-        [Nullable[Bool]]$AccountIsDisabled = $null,
+        [Bool]$AccountIsDisabled,
         [Parameter(ParameterSetName='LocalPath')]
         [Parameter(ParameterSetName='RemotePath')]
         [String]$ComputerName = $env:COMPUTERNAME
@@ -280,29 +280,28 @@ Function Set-LocalUser
             
             if ($User -ne $null)
             {
-                # [String] has no [Nullable] type, so use the magic string '__Null' to indicate a parameter was not selected, this allows an empty string to be set
-                if ($SamAccountName -ne '__Null') {$User.GetUnderlyingObject().Rename($SamAccountName)}
-                if ($FullName -ne '__Null') {$User.DisplayName = $FullName}
-                if ($Description -ne '__Null') {$User.Description = $Description}
-                if ($ProfilePath -ne '__Null') {$User.GetUnderlyingObject().Profile = $ProfilePath}
-                if ($LogonScript -ne '__Null') {$User.ScriptPath = $LogonScript}
-                if ($HomeFolderLocalPath -ne '__Null')
+                if ($PSBoundParameters.ContainsKey('SamAccountName')) {$User.GetUnderlyingObject().Rename($SamAccountName)}
+                if ($PSBoundParameters.ContainsKey('FullName')) {$User.DisplayName = $FullName}
+                if ($PSBoundParameters.ContainsKey('Description')) {$User.Description = $Description}
+                if ($PSBoundParameters.ContainsKey('ProfilePath')) {$User.GetUnderlyingObject().Profile = $ProfilePath}
+                if ($PSBoundParameters.ContainsKey('ScriptPath')) {$User.ScriptPath = $LogonScript}
+                if ($PSBoundParameters.ContainsKey('HomeFolderLocalPath'))
                 {
                     $User.HomeDirectory = $HomeFolderLocalPath
                     # HomeDrive must be empty if a local home folder path is used
                     $User.HomeDrive = ''
                 }
 
-                if ($HomeFolderPath -ne '__Null') {$User.HomeDirectory = $HomeFolderPath}
-                if ($HomeFolderDrive -ne '__Null') {$User.HomeDrive = $HomeFolderDrive}
-                if ($PasswordNeverExpires -ne $null) {$User.PasswordNeverExpires = $PasswordNeverExpires}
-                if ($UserCannotChangePassword -ne $null) {$User.UserCannotChangePassword = $UserCannotChangePassword}
-                if ($UserMustChangePasswordOnNextLogin -ne $null)
+                if ($PSBoundParameters.ContainsKey('HomeFolderPath')) {$User.HomeDirectory = $HomeFolderPath}
+                if ($PSBoundParameters.ContainsKey('HomeFolderDrive')) {$User.HomeDrive = $HomeFolderDrive}
+                if ($PSBoundParameters.ContainsKey('PasswordNeverExpires')) {$User.PasswordNeverExpires = $PasswordNeverExpires}
+                if ($PSBoundParameters.ContainsKey('UserCannotChangePassword')) {$User.UserCannotChangePassword = $UserCannotChangePassword}
+                if ($PSBoundParameters.ContainsKey('UserMustChangePasswordOnNextLogin'))
                 {
                     if ($UserMustChangePasswordOnNextLogin -eq $true) {$User.ExpirePasswordNow()} else {$User.RefreshExpiredPassword()}
                 }
 
-                if ($AccountIsDisabled -ne $null)
+                if ($PSBoundParameters.ContainsKey('AccountIsDisabled'))
                 {
                     # matching the parameter name to the GUI
                     if ($AccountIsDisabled) {$User.Enabled = $false} else {$User.Enabled = $true}
@@ -571,10 +570,7 @@ Function Add-LocalGroupMember
                     {
                         try
                         {
-                            # using DirectoryServices.AccountManagement method raises: Exception "The network path was not found." if the machine is joined to a domain.
-                            #$Group.Members.Add($User)
-
-                            # the underlying DirectoryServices.DirectoryEntry object works fine
+                            # the DirectoryServices.AccountManagement object raises: Exception "The network path was not found." on domain objects as a local user
                             $Group.GetUnderlyingObject().Add($User.GetUnderlyingObject().Path)
                         }
                         catch [Runtime.InteropServices.COMException]
@@ -630,7 +626,7 @@ Function Get-LocalGroupMember
     .PARAMETER ComputerName
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
-        None or DirectoryServices.AccountManagement.UserPrincipal on success.
+        None or DirectoryServices.AccountManagement.UserPrincipal or GroupPrincipal on success.
         A terminating error if the SAM database cannot be accessed.
     .EXAMPLE
         Get-LocalUser -Identity John
@@ -655,7 +651,25 @@ Function Get-LocalGroupMember
             
             if ($Group -ne $null)
             {
-                $Group.Members
+                try
+                {
+                    # all the members need to be read once to check if any domain objects can't be accessed under a local user
+                    $Group.GetMembers() | Out-Null
+                    # no error so get the members again and return
+                    $Group.GetMembers()
+                }
+                catch [Management.Automation.RuntimeException]
+                {
+                    if ($_.Exception.Message.Contains('The network path was not found.'))
+                    {
+                        Write-Warning "This group contains objects from a Domain context. To return the members of this group as AccountManagement.Principal objects a user with read permissions in the domain is required."
+                        $Group.GetUnderlyingObject().Members() | ForEach-Object { ([ADSI]$_).InvokeGet('Name') }
+                    }
+                    else
+                    {
+                        throw
+                    }
+                }
             }
             else
             {
@@ -670,7 +684,7 @@ Function Get-LocalGroupMember
 
     End
     {
-        $Context.Dispose()
+        # for cmdlets that can return an object don't dispose the Context so it is usable
     }
 }
 
@@ -725,10 +739,7 @@ Function Remove-LocalGroupMember
                     {
                         try
                         {
-                            # using DirectoryServices.AccountManagement object raises: Exception "The network path was not found." if the machine is joined to a domain.
-                            #$Group.Members.Remove($User)
-
-                            # the underlying DirectoryServices.DirectoryEntry object works fine
+                            # the DirectoryServices.AccountManagement object raises: Exception "The network path was not found." on domain objects as a local user
                             $Group.GetUnderlyingObject().Remove($User.GetUnderlyingObject().Path)
                         }
                         catch [Runtime.InteropServices.COMException]
@@ -810,7 +821,7 @@ Function New-LocalGroup
             $Group = New-Object DirectoryServices.AccountManagement.GroupPrincipal($Context)
             $Group.SAMAccountName = $SAMAccountName
             $Group.Save()
-            # the principle object raises the following error under PowerShell 2.0 'Exception setting "Description": "Property is not valid for this store type."'
+            # DirectoryServices.AccountManagement raises the following error under PowerShell 2.0 'Exception setting "Description": "Property is not valid for this store type."'
             $Group.GetUnderlyingObject().Description = $Description
             $Group.Save()
             $Group.Dispose()
@@ -884,7 +895,7 @@ Function Get-LocalGroup
 
     End
     {
-        $Context.Dispose()
+        # for cmdlets that can return an object don't dispose the Context so it is usable
     }
 }
 
@@ -916,8 +927,8 @@ Function Set-LocalGroup
         [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True)]
         [String]$Identity,
         [Alias('Name')]
-        [String]$SAMAccountName = '__Null',
-        [String]$Description = '__Null',
+        [String]$SAMAccountName,
+        [String]$Description,
         [String]$ComputerName = $env:COMPUTERNAME
     )
 
@@ -934,8 +945,8 @@ Function Set-LocalGroup
 
             if ($Group -ne $null)
             {
-                if ($SAMAccountName -ne '__Null') {$Group.GetUnderlyingObject().Rename($SAMAccountName)}
-                if ($Description -ne '__Null') {$Group.GetUnderlyingObject().Description = $Description}
+                if ($PSBoundParameters.ContainsKey('SamAccountName')) {$Group.GetUnderlyingObject().Rename($SAMAccountName)}
+                if ($PSBoundParameters.ContainsKey('Description')) {$Group.GetUnderlyingObject().Description = $Description}
                 $Group.Save()
                 $Group.Dispose()
             }
@@ -1013,4 +1024,3 @@ Function Remove-LocalGroup
         $Context.Dispose()
     }
 }
-
