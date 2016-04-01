@@ -905,7 +905,7 @@ Function Set-LocalGroup
     .SYNOPSIS
         Modify a local groups.
     .DESCRIPTION
-        The Get-LocalGroup cmdlet modifies the properties of a local group. Parameters that are not selected will not be changed.
+        The Set-LocalGroup cmdlet modifies the properties of a local group. Parameters that are not selected will not be changed.
 
         The Identity parameter specifies the object using the SAMAccountName or the SID.
     .PARAMETER Identity
@@ -1022,5 +1022,107 @@ Function Remove-LocalGroup
     End
     {
         $Context.Dispose()
+    }
+}
+
+Function Import-RegistryHive
+{
+    <#
+    .SYNOPSIS
+        Import a registry hive from a file.
+    .DESCRIPTION
+        The Import-RegistryHive cmdlet imports a registry hive from a file.
+        
+        An imported hive is loaded into a registry key and then the key is mapped to a PSDrive using the registry provider. The PSDrive is available globally in the current session and must be unloaded using Remove-RegistryHive for it to be fully removed from the session.
+    .PARAMETER File
+        Specifies the registry hive file to load.
+    .PARAMETER Key
+        Specifies the registry key to load the hive into, in the format HKLM\MY_KEY or HKCU\MY_KEY
+    .PARAMETER Name
+        Specifies the name of the PSDrive used to access the hive, excluding the characters ;~/\.:
+    .OUTPUTS
+        None on success.
+        A terminating error if the PSDrive name already exists, the registry hive cannot be loaded or the key cannot be created.
+    .EXAMPLE
+        Import-RegistryHive -File 'C:\Users\Default\NTUSER.DAT' -Key 'HKLM\TEMP_HIVE' -Name TempHive
+        Get-ChildItem TempHive:\
+    #>
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [String]$File,
+        # check the registry key name is not an invalid format
+        [Parameter(Mandatory=$true)]
+        [ValidatePattern('^(HKLM\\|HKCU\\)[a-zA-Z0-9- _\\]+$')]
+        [String]$Key,
+        # check the PSDrive name does not include invalid characters
+        [Parameter(Mandatory=$true)]
+        [ValidatePattern('^[^;~/\\\.\:]+$')]
+        [String]$Name
+    )
+
+    # check whether the drive name is available
+    $TestDrive = Get-PSDrive -Name $Name -EA SilentlyContinue
+    if ($TestDrive -ne $null)
+    {
+        throw [Management.Automation.SessionStateException] "A PSDrive with the name '$Name' already exists."
+    }
+    
+    $Process = Start-Process -FilePath "$env:WINDIR\system32\reg.exe" -ArgumentList "load $Key $File" -WindowStyle Hidden -PassThru -Wait
+    
+    if ($Process.ExitCode > 0)
+    {
+        throw [Management.Automation.PSInvalidOperationException] "The registry hive '$File' failed to load. Verify the source path or target registry key."
+    }
+    
+    try
+    {
+        # validate patten on $Name in the Params and the drive name check at the start make it very unlikely New-PSDrive will fail
+        New-PSDrive -Name $Name -PSProvider Registry -Root $Key -Scope Global -EA Stop | Out-Null
+    }
+    catch
+    {
+        throw [Management.Automation.PSInvalidOperationException] "A critical error creating PSDrive '$Name' has caused the registy key '$Key' to be left loaded, this must be unloaded manually."
+    }
+}
+
+Function Remove-RegistryHive
+{
+    <#
+    .SYNOPSIS
+        Remove a registry hive loaded via Import-RegistryHive.
+    .DESCRIPTION
+        The Remove-RegistryHive cmdlet removes a registry hive loaded via Import-RegistryHive.
+
+        The associated PSDrive will be removed and the registry key created during the import will be unloaded.
+    .PARAMETER Name
+        Specifies the name of the PSDrive used to access the hive.
+    .OUTPUTS
+        None on success.
+        A terminating error if the PSDrive or registry key reasources are still in use.
+    .EXAMPLE
+        Remove-RegistryHive -Name TempHive
+    #>
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [ValidatePattern('^[^;~/\\\.\:]+$')]
+        [String]$Name
+    )
+    
+    # set -ErrorAction Stop as we never want to proceed if the drive doesnt exist
+    $Drive = Get-PSDrive -Name $Name -EA Stop
+    # $Drive.Root is the path to the registry key, save this before the drive is removed
+    $Key = $Drive.Root
+    
+    # remove the drive, the only reason this should fail is if the reasource is busy
+    Remove-PSDrive $Name -EA Stop
+    
+    $Process = Start-Process -FilePath "$env:WINDIR\system32\reg.exe" -ArgumentList "unload $Key" -WindowStyle Hidden -PassThru -Wait
+    if ($Process.ExitCode)
+    {
+        # if "reg unload" fails due to the resource being busy, the drive gets added back to keep the original state
+        New-PSDrive -Name $Name -PSProvider Registry -Root $Key -Scope Global -EA Stop | Out-Null
+        throw [Management.Automation.PSInvalidOperationException] "The registry key '$Key' could not be unloaded, the key may still be in use."
     }
 }
