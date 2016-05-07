@@ -1126,3 +1126,125 @@ Function Remove-RegistryHive
         throw [Management.Automation.PSInvalidOperationException] "The registry key '$Key' could not be unloaded, the key may still be in use."
     }
 }
+
+Function Set-PowerStandbyOptions
+{
+    <#
+    .SYNOPSIS
+        Set power standby options for the machine and display.
+    .DESCRIPTION
+        The Set-PowerStandbyOptions cmdlet changes the standby timeout for sleep, hibernate and display power saving options.
+
+        By default settings are applied to the AC power plan type (plugged in).
+    .PARAMETER Name
+        Specifies the power plan by name.
+    .PARAMETER Active
+        Specifies the active power plan.
+    .PARAMETER SleepAfter
+        Specifies the idle time in minuets before the machine will sleep, 0 will set "Never".
+    .PARAMETER HibernateAfter
+        Specifies the idle time in minuets before the machine will hibernate, 0 will set "Never".
+    .PARAMETER TurnOffDisplayAfter
+        Specifies the idle time in minuets before the display will sleep, 0 will set "Never".
+    .PARAMETER Battery
+        Applies the settings to the DC power plan type (on battery).
+    .PARAMETER ComputerName
+        Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
+    .OUTPUTS
+        None on success.
+        A non-terminating error if ...
+        A terminating error if the power plan does not exist or ...
+    .EXAMPLE
+        Set-PowerStandbyOptions -Active -SleepAfter 30 -TurnOffDisplayAfter 5 -Battery
+    .EXAMPLE
+        Set-PowerStandbyOptions -Name 'Balanced' -SleepAfter 90 -TurnOffDisplayAfter 30
+    #>
+    [CmdletBinding(DefaultParametersetName='Active')]
+    Param(
+        [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True,ParameterSetName='Named')]
+        [Alias('PowerPlan')]
+        [String]$Name,
+        [Parameter(Mandatory=$true,ParameterSetName='Active')]
+        [Switch]$Active,
+        [Parameter(ParameterSetName='Named')]
+        [Parameter(ParameterSetName='Active')]
+        [Int]$SleepAfter,
+        [Parameter(ParameterSetName='Named')]
+        [Parameter(ParameterSetName='Active')]
+        [Int]$HibernateAfter,
+        [Parameter(ParameterSetName='Named')]
+        [Parameter(ParameterSetName='Active')]
+        [Int]$TurnOffDisplayAfter,
+        [Parameter(ParameterSetName='Named')]
+        [Parameter(ParameterSetName='Active')]
+        [Switch]$Battery,
+        [Parameter(ParameterSetName='Named')]
+        [Parameter(ParameterSetName='Active')]
+        [String]$ComputerName = $env:COMPUTERNAME
+    )
+    
+    Process
+    {
+        if ($Active)
+        {
+            $InstanceId = (Get-WmiObject -Namespace "root\cimv2\power" -Query "SELECT * FROM Win32_PowerPlan WHERE IsActive = True" -ComputerName $ComputerName).InstanceID 
+        }
+    
+        if ($Name.Length -gt 0)
+        {
+            $InstanceId = (Get-WmiObject -Namespace "root\cimv2\power" -Query "SELECT * FROM Win32_PowerPlan WHERE ElementName = '$Name'" -ComputerName $ComputerName).InstanceID
+        }
+        
+        if ($InstanceId -match '{(.*)}\z')
+        {
+            $PowerPlanGuid = $Matches[1]
+        }
+        else
+        {
+            throw [Management.Automation.ItemNotFoundException] "Cannot find a power plan named '$Name' on '$ComputerName'."
+        }
+
+        # choose power plan type
+        $PowerPlanType = 'AC'
+        if ($Battery) {$PowerPlanType = 'DC'}
+
+        
+        if ($PSBoundParameters.ContainsKey('SleepAfter'))
+        {
+            $PowerSettingGuid = '29f6c1db-86da-48c5-9fdb-f2b67b1f44da' # Sleep after
+            $PowerSettingDataIndex = Get-WmiObject `
+                -Namespace "root\cimv2\power" `
+                -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
+                -ComputerName $ComputerName
+
+            $PowerSettingValue = ($SleepAfter * 60)
+            Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
+        }
+        
+        if ($PSBoundParameters.ContainsKey('HibernateAfter'))
+        {
+            $PowerSettingGuid = '9d7815a6-7ee4-497e-8888-515a05f02364' # Hibernate after
+            $PowerSettingDataIndex = Get-WmiObject `
+                -Namespace "root\cimv2\power" `
+                -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
+                -ComputerName $ComputerName
+
+            $PowerSettingValue = ($HibernateAfter * 60)
+            Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
+        }
+        
+        if ($PSBoundParameters.ContainsKey('TurnOffDisplayAfter'))
+        {
+            $PowerSettingGuid = '3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e' # Turn off display after
+            $PowerSettingDataIndex = Get-WmiObject `
+                -Namespace "root\cimv2\power" `
+                -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
+                -ComputerName $ComputerName
+
+            $PowerSettingValue = ($HibernateAfter * 60)
+            Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
+        }
+    }
+}
+
+
