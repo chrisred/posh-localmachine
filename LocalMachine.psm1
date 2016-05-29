@@ -1247,4 +1247,72 @@ Function Set-PowerStandbyOptions
     }
 }
 
+Function Set-RemoteDesktopOptions
+{
+    <#
+    .SYNOPSIS
+        Set remote desktop options.
+    .DESCRIPTION
+        The Set-RemoteDesktopOptions cmdlet modifies the remote desktop options.
+    .PARAMETER AllowRDP
+        Specifies whether Remote Desktop
+    .PARAMETER AllowNLA
+        Specifies the active power plan.
+    .PARAMETER ComputerName
+        Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
+    .OUTPUTS
+        None on success.
+        A non-terminating error if ...
+        A terminating error if ...
+    .EXAMPLE
+        
+    .EXAMPLE
+        
+    #>
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [Bool]$AllowRDP,
+        [Parameter(Mandatory=$true)]
+        [Bool]$AllowNLA
+    )
+    
+    try
+    {
+        $TSSetting = Get-WmiObject -Namespace 'root\cimv2\TerminalServices' -Query "SELECT * FROM Win32_TerminalServiceSetting"
+        # TSGeneralSetting returns two enteries on Win7 (RDP-Tcp and EH-Tcp) we only want RDP, EH-Tcp appers to be for Media Center Extender compatability
+        $TSGeneralSetting = Get-WmiObject -Namespace 'root\cimv2\TerminalServices' -Query "SELECT * FROM Win32_TSGeneralSetting WHERE TerminalName = 'RDP-Tcp'"
 
+        if ($EnableRDP)
+        {
+            # enable RDP and open ports in Windows Firewall
+            $TSSetting.SetAllowTSConnections(1,1) | Out-Null
+        }
+        else
+        {
+            $TSSetting.SetAllowTSConnections(0,0) | Out-Null
+        }
+
+        if ($EnableNLA)
+        {
+            $TSGeneralSetting.SetUserAuthenticationRequired(1) | Out-Null
+        }
+        else
+        {
+            $TSGeneralSetting.SetUserAuthenticationRequired(0) | Out-Null
+        }
+    }
+    catch
+    {
+        if ($_.Exception.Message.Contains('Invalid namespace'))
+        {
+            $Message = $_.Exception.Message.Trim()
+            throw "Error: $Message. It is likely this version of Windows does not support Remote Desktop Services."
+        }
+        else
+        {
+            # rethrow any other errors
+            throw
+        }
+    }
+}
