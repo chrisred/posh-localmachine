@@ -1152,8 +1152,7 @@ Function Set-PowerStandbyOptions
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
         None on success.
-        A non-terminating error if ...
-        A terminating error if the power plan does not exist or ...
+        A non-terminating error the power plan does not exist.
     .EXAMPLE
         Set-PowerStandbyOptions -Active -SleepAfter 30 -TurnOffDisplayAfter 5 -Battery
     .EXAMPLE
@@ -1185,64 +1184,76 @@ Function Set-PowerStandbyOptions
     
     Process
     {
-        if ($Active)
+        try
         {
-            $InstanceId = (Get-WmiObject -Namespace "root\cimv2\power" -Query "SELECT * FROM Win32_PowerPlan WHERE IsActive = True" -ComputerName $ComputerName).InstanceID 
-        }
-    
-        if ($Name.Length -gt 0)
-        {
-            $InstanceId = (Get-WmiObject -Namespace "root\cimv2\power" -Query "SELECT * FROM Win32_PowerPlan WHERE ElementName = '$Name'" -ComputerName $ComputerName).InstanceID
-        }
+            if ($Active)
+            {
+                $InstanceId = (Get-WmiObject -Namespace "root\cimv2\power" -Query "SELECT * FROM Win32_PowerPlan WHERE IsActive = True" -ComputerName $ComputerName -EA Stop).InstanceID 
+            }
+            
+            if ($Name.Length -gt 0)
+            {
+                $InstanceId = (Get-WmiObject -Namespace "root\cimv2\power" -Query "SELECT * FROM Win32_PowerPlan WHERE ElementName = '$Name'" -ComputerName $ComputerName -EA Stop).InstanceID
+            }
+            
+            if ($InstanceId -match '{(.*)}\z')
+            {
+                $PowerPlanGuid = $Matches[1]
+            }
+            else
+            {
+                #throw [Management.Automation.ItemNotFoundException] "Cannot find a power plan named '$Name' on '$ComputerName'."
+                Write-Error "Cannot find a power plan named '$Name' on '$ComputerName'."
+                # stop execution here
+                return $null
+            }
+            
+            # choose power plan type
+            $PowerPlanType = 'AC'
+            if ($Battery) {$PowerPlanType = 'DC'}
+            
+            if ($PSBoundParameters.ContainsKey('SleepAfter'))
+            {
+                $PowerSettingGuid = '29f6c1db-86da-48c5-9fdb-f2b67b1f44da' # Sleep after
+                $PowerSettingDataIndex = Get-WmiObject `
+                    -Namespace "root\cimv2\power" `
+                    -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
+                    -ComputerName $ComputerName
+
+                $PowerSettingValue = ($SleepAfter * 60)
+                Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
+            }
         
-        if ($InstanceId -match '{(.*)}\z')
-        {
-            $PowerPlanGuid = $Matches[1]
-        }
-        else
-        {
-            throw [Management.Automation.ItemNotFoundException] "Cannot find a power plan named '$Name' on '$ComputerName'."
-        }
+            if ($PSBoundParameters.ContainsKey('HibernateAfter'))
+            {
+                $PowerSettingGuid = '9d7815a6-7ee4-497e-8888-515a05f02364' # Hibernate after
+                $PowerSettingDataIndex = Get-WmiObject `
+                    -Namespace "root\cimv2\power" `
+                    -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
+                    -ComputerName $ComputerName
 
-        # choose power plan type
-        $PowerPlanType = 'AC'
-        if ($Battery) {$PowerPlanType = 'DC'}
-
+                $PowerSettingValue = ($HibernateAfter * 60)
+                Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
+            }
         
-        if ($PSBoundParameters.ContainsKey('SleepAfter'))
-        {
-            $PowerSettingGuid = '29f6c1db-86da-48c5-9fdb-f2b67b1f44da' # Sleep after
-            $PowerSettingDataIndex = Get-WmiObject `
-                -Namespace "root\cimv2\power" `
-                -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
-                -ComputerName $ComputerName
-
-            $PowerSettingValue = ($SleepAfter * 60)
-            Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
+            if ($PSBoundParameters.ContainsKey('TurnOffDisplayAfter'))
+            {
+                $PowerSettingGuid = '3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e' # Turn off display after
+                $PowerSettingDataIndex = Get-WmiObject `
+                    -Namespace "root\cimv2\power" `
+                    -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
+                    -ComputerName $ComputerName
+            
+                $PowerSettingValue = ($TurnOffDisplayAfter * 60)
+                Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
+            }
         }
-        
-        if ($PSBoundParameters.ContainsKey('HibernateAfter'))
+        # Get-WmiObject raises non-terminating errors, making them stopping with '-EA Stop' will cast all exceptions to RuntimeException
+        # Using $error to inspect the orginial exception could give more granularity
+        catch [Management.Automation.RuntimeException]
         {
-            $PowerSettingGuid = '9d7815a6-7ee4-497e-8888-515a05f02364' # Hibernate after
-            $PowerSettingDataIndex = Get-WmiObject `
-                -Namespace "root\cimv2\power" `
-                -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
-                -ComputerName $ComputerName
-
-            $PowerSettingValue = ($HibernateAfter * 60)
-            Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
-        }
-        
-        if ($PSBoundParameters.ContainsKey('TurnOffDisplayAfter'))
-        {
-            $PowerSettingGuid = '3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e' # Turn off display after
-            $PowerSettingDataIndex = Get-WmiObject `
-                -Namespace "root\cimv2\power" `
-                -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
-                -ComputerName $ComputerName
-
-            $PowerSettingValue = ($HibernateAfter * 60)
-            Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
+            # a group policy enforcing settings could raise this error
+            throw "Error accessing or updating the options on '$ComputerName'. $($_.Exception.Message)"
         }
     }
 }
@@ -1255,45 +1266,43 @@ Function Set-RemoteDesktopOptions
     .DESCRIPTION
         The Set-RemoteDesktopOptions cmdlet modifies the remote desktop options.
     .PARAMETER AllowRDP
-        Specifies whether Remote Desktop
-    .PARAMETER AllowNLA
-        Specifies the active power plan.
+        Specifies whether Remote Desktop connections will be accepted and firewall exceptions modified.
+    .PARAMETER AllowNLAOnly
+        Specifies whether only connections from computers running Network Level Authentication are accepted.
     .PARAMETER ComputerName
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
         None on success.
-        A non-terminating error if ...
-        A terminating error if ...
+        A terminating error if user permissions are incorrect or the version of Windows does no support Remote Desktop Services.
     .EXAMPLE
-        
-    .EXAMPLE
-        
+        Set-RemoteDesktopOptions -AllowRDP $true -AllowNLAOnly $false
     #>
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory=$true)]
         [Bool]$AllowRDP,
         [Parameter(Mandatory=$true)]
-        [Bool]$AllowNLA
+        [Bool]$AllowNLAOnly,
+        [String]$ComputerName = $env:COMPUTERNAME
     )
     
     try
     {
-        $TSSetting = Get-WmiObject -Namespace 'root\cimv2\TerminalServices' -Query "SELECT * FROM Win32_TerminalServiceSetting"
+        $TSSetting = Get-WmiObject -Namespace 'root\cimv2\TerminalServices' -Query "SELECT * FROM Win32_TerminalServiceSetting" -ComputerName $ComputerName #-EA Stop?
         # TSGeneralSetting returns two enteries on Win7 (RDP-Tcp and EH-Tcp) we only want RDP, EH-Tcp appers to be for Media Center Extender compatability
-        $TSGeneralSetting = Get-WmiObject -Namespace 'root\cimv2\TerminalServices' -Query "SELECT * FROM Win32_TSGeneralSetting WHERE TerminalName = 'RDP-Tcp'"
+        $TSGeneralSetting = Get-WmiObject -Namespace 'root\cimv2\TerminalServices' -Query "SELECT * FROM Win32_TSGeneralSetting WHERE TerminalName = 'RDP-Tcp'" -ComputerName $ComputerName
 
-        if ($EnableRDP)
+        if ($AllowRDP)
         {
-            # enable RDP and open ports in Windows Firewall
+            # enable RDP and modify firewall excpetions
             $TSSetting.SetAllowTSConnections(1,1) | Out-Null
         }
         else
         {
-            $TSSetting.SetAllowTSConnections(0,0) | Out-Null
+            $TSSetting.SetAllowTSConnections(0,1) | Out-Null
         }
 
-        if ($EnableNLA)
+        if ($AllowNLAOnly)
         {
             $TSGeneralSetting.SetUserAuthenticationRequired(1) | Out-Null
         }
@@ -1302,17 +1311,16 @@ Function Set-RemoteDesktopOptions
             $TSGeneralSetting.SetUserAuthenticationRequired(0) | Out-Null
         }
     }
-    catch
+    catch [Management.Automation.RuntimeException]
     {
         if ($_.Exception.Message.Contains('Invalid namespace'))
         {
             $Message = $_.Exception.Message.Trim()
-            throw "Error: $Message. It is likely this version of Windows does not support Remote Desktop Services."
+            throw "Error accessing or updating the options on '$ComputerName'. It is likely this version of Windows does not support Remote Desktop Services."
         }
         else
         {
-            # rethrow any other errors
-            throw
+             throw "Error accessing or updating the options on '$ComputerName'. $($_.Exception.Message)"
         }
     }
 }
