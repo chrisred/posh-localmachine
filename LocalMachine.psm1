@@ -1153,6 +1153,7 @@ Function Set-PowerStandbyOptions
     .OUTPUTS
         None on success.
         A non-terminating error the power plan does not exist.
+        A terminating error if the options cannot be modified or are not supported.
     .EXAMPLE
         Set-PowerStandbyOptions -Active -SleepAfter 30 -TurnOffDisplayAfter 5 -Battery
     .EXAMPLE
@@ -1188,6 +1189,7 @@ Function Set-PowerStandbyOptions
         {
             if ($Active)
             {
+                # -EA Stop is required as Get-WmiObject raises a number of non-terminating errors
                 $InstanceId = (Get-WmiObject -Namespace "root\cimv2\power" -Query "SELECT * FROM Win32_PowerPlan WHERE IsActive = True" -ComputerName $ComputerName -EA Stop).InstanceID 
             }
             
@@ -1202,7 +1204,6 @@ Function Set-PowerStandbyOptions
             }
             else
             {
-                #throw [Management.Automation.ItemNotFoundException] "Cannot find a power plan named '$Name' on '$ComputerName'."
                 Write-Error "Cannot find a power plan named '$Name' on '$ComputerName'."
                 # stop execution here
                 return $null
@@ -1248,11 +1249,9 @@ Function Set-PowerStandbyOptions
                 Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
             }
         }
-        # Get-WmiObject raises non-terminating errors, making them stopping with '-EA Stop' will cast all exceptions to RuntimeException
-        # Using $error to inspect the orginial exception could give more granularity
         catch [Management.Automation.RuntimeException]
         {
-            # a group policy enforcing settings could raise this error
+            # a group policy resulting in settings that cannot be modified could raise this error
             throw "Error accessing or updating the options on '$ComputerName'. $($_.Exception.Message)"
         }
     }
@@ -1266,14 +1265,14 @@ Function Set-RemoteDesktopOptions
     .DESCRIPTION
         The Set-RemoteDesktopOptions cmdlet modifies the remote desktop options.
     .PARAMETER AllowRDP
-        Specifies whether Remote Desktop connections will be accepted and firewall exceptions modified.
+        Specifies whether Remote Desktop connections will be accepted and the firewall exceptions modified accordingly.
     .PARAMETER AllowNLAOnly
         Specifies whether only connections from computers running Network Level Authentication are accepted.
     .PARAMETER ComputerName
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
         None on success.
-        A terminating error if user permissions are incorrect or the version of Windows does no support Remote Desktop Services.
+        A terminating error if the options cannot be modified or are not supported.
     .EXAMPLE
         Set-RemoteDesktopOptions -AllowRDP $true -AllowNLAOnly $false
     #>
@@ -1288,9 +1287,10 @@ Function Set-RemoteDesktopOptions
     
     try
     {
-        $TSSetting = Get-WmiObject -Namespace 'root\cimv2\TerminalServices' -Query "SELECT * FROM Win32_TerminalServiceSetting" -ComputerName $ComputerName #-EA Stop?
-        # TSGeneralSetting returns two enteries on Win7 (RDP-Tcp and EH-Tcp) we only want RDP, EH-Tcp appers to be for Media Center Extender compatability
-        $TSGeneralSetting = Get-WmiObject -Namespace 'root\cimv2\TerminalServices' -Query "SELECT * FROM Win32_TSGeneralSetting WHERE TerminalName = 'RDP-Tcp'" -ComputerName $ComputerName
+        # -EA Stop is required as Get-WmiObject raises a number of non-terminating errors
+        $TSSetting = Get-WmiObject -Namespace 'root\cimv2\TerminalServices' -Query "SELECT * FROM Win32_TerminalServiceSetting" -ComputerName $ComputerName -EA Stop
+        # TSGeneralSetting returns two objects on Win7 (RDP-Tcp and EH-Tcp) we only want RDP, EH-Tcp appers to be for Media Center Extender compatability
+        $TSGeneralSetting = Get-WmiObject -Namespace 'root\cimv2\TerminalServices' -Query "SELECT * FROM Win32_TSGeneralSetting WHERE TerminalName = 'RDP-Tcp'" -ComputerName $ComputerName -EA Stop
 
         if ($AllowRDP)
         {
