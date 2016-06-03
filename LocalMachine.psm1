@@ -1,4 +1,3 @@
-
 Add-Type -AssemblyName System.DirectoryServices.AccountManagement
 
 Function New-LocalUser
@@ -125,9 +124,10 @@ Function New-LocalUser
             # catch specific object exists exception and make it non-terminating
             Write-Error "Error creating the object '$SAMAccountName' on '$ComputerName. $($_.Exception.Message)"
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException],
+              [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
-            # catches all remaning exceptions that might be generated around object modification or access (from .NET and COM sources)
+            # catches all remaning exceptions that might be generated around object modification or access
             throw "Error accessing or creating the object '$SAMAccountName' on '$ComputerName'. $($_.Exception.Message)"
         }
     }
@@ -177,7 +177,7 @@ Function Get-LocalUser
                 $Searcher.FindAll()
             }
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing the object store on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -315,7 +315,7 @@ Function Set-LocalUser
                 Write-Error "Cannot find an object with identity '$Identity' on '$ComputerName'."
             }
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing or updating the object '$Identity' on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -373,7 +373,7 @@ Function Remove-LocalUser
                 Write-Error "Cannot find an object with identity '$Identity' on '$ComputerName'."
             }
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing or updating the object '$Identity' on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -436,7 +436,7 @@ Function Set-LocalAccountPassword
                 Write-Error "Cannot find and object with identity '$Identity' on '$ComputerName'."
             }
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing or updating the object '$Identity' on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -600,7 +600,7 @@ Function Add-LocalGroupMember
                 Write-Error "Cannot find an object with identity '$Identity' on '$ComputerName'."
             }
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing or updating the object '$Identity' on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -676,7 +676,7 @@ Function Get-LocalGroupMember
                 Write-Error "Cannot find an object with identity '$Identity' on '$ComputerName'."
             }
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing the object store on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -769,7 +769,7 @@ Function Remove-LocalGroupMember
                 Write-Error "Cannot find an object with identity '$Identity' on '$ComputerName'."
             }
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing or updating the object '$Identity' on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -830,7 +830,7 @@ Function New-LocalGroup
         {
             Write-Error "Error creating the object '$SAMAccountName' on '$ComputerName'. $($_.Exception.Message)"
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing or creating the object '$SAMAccountName' on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -887,7 +887,7 @@ Function Get-LocalGroup
                 $Searcher.FindAll()
             }
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing the object store on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -955,7 +955,7 @@ Function Set-LocalGroup
                 Write-Error "Cannot find and object with identity '$Identity' on '$ComputerName'."
             }
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing or updating the object '$SAMAccountName' on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -1013,7 +1013,7 @@ Function Remove-LocalGroup
                 Write-Error "Cannot find an object with identity '$Identity' on '$ComputerName'."
             }
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             throw "Error accessing or updating the object '$SAMAccountName' on '$ComputerName'. $($_.Exception.Message)"
         }
@@ -1315,12 +1315,11 @@ Function Set-RemoteDesktopOptions
     {
         if ($_.Exception.Message.Contains('Invalid namespace'))
         {
-            $Message = $_.Exception.Message.Trim()
             throw "Error accessing or updating the options on '$ComputerName'. It is likely this version of Windows does not support Remote Desktop Services."
         }
         else
         {
-             throw "Error accessing or updating the options on '$ComputerName'. $($_.Exception.Message)"
+            throw "Error accessing or updating the options on '$ComputerName'. $($_.Exception.Message)"
         }
     }
 }
