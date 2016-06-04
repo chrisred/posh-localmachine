@@ -124,8 +124,7 @@ Function New-LocalUser
             # catch specific object exists exception and make it non-terminating
             Write-Error "Error creating the object '$SAMAccountName' on '$ComputerName. $($_.Exception.Message)"
         }
-        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException],
-              [UnauthorizedAccessException], [Management.Automation.RuntimeException]
+        catch [DirectoryServices.AccountManagement.PrincipalException], [Runtime.InteropServices.COMException], [UnauthorizedAccessException], [Management.Automation.RuntimeException]
         {
             # catches all remaning exceptions that might be generated around object modification or access
             throw "Error accessing or creating the object '$SAMAccountName' on '$ComputerName'. $($_.Exception.Message)"
@@ -729,7 +728,7 @@ Function Remove-LocalGroupMember
         try
         {
             $Group = [DirectoryServices.AccountManagement.GroupPrincipal]::FindByIdentity($Context, $Identity)
-        
+            
             if ($Group -ne $null)
             {
                 foreach ($Member in $Members)
