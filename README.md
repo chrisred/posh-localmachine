@@ -1,4 +1,4 @@
-# LocalMachine
+# LocalMachine ##
 
 LocalMachine provides some simple functions for managing accounts and settings on a Windows client running PowerShell 2.0 and greater.
 
@@ -14,9 +14,9 @@ Currently the following cmdlets are available:
  > 
  > Import-RegistryHive Remove-RegistryHive
 
-## Installation
+## Installation ##
 
-From [powershellgallery.com](https://www.powershellgallery.com/GettingStarted) using `Install-Module` from the new PackageManagement module.
+From [powershellgallery.com](https://www.powershellgallery.com/GettingStarted) using `Install-Module` from the new `PackageManagement` module.
 
 `Install-Module -Name LocalMachine`
 
@@ -30,7 +30,19 @@ By placing `LocalMachine.psm1`, `LocalMachine.psd1` and `LocalMachine.format.ps1
 
 See [about_Modules](https://technet.microsoft.com/en-us/library/hh847804%28v=wps.640%29.aspx) for more information.
 
-## Remote Connections
+## Remote Connections ##
+
+In a Workgroup WinRM it is disabled by default, to enable and test run the following commands.
+
+    Enable-PSRemoting -Force
+    Set-Item wsman:\localhost\client\trustedhosts *
+    Test-WsMan
+
+The `trustedhosts` key can be a wildcard or a comma separated list of ip addresses or hostnames.
+
+In a Domain WinRM will need to be enabled for clients, for servers it should be enabled by default.
+
+### Remoting without WinRM ###
 
 In a Workgroup the following options are available to get the `-ComputerName` parameter working.
 
@@ -41,15 +53,17 @@ In a Workgroup the following options are available to get the `-ComputerName` pa
 
 In a Domain remote connections using **domain accounts** are not subject to UAC token filtering and [Remote UAC](https://msdn.microsoft.com/en-us/library/windows/desktop/aa826699%28v=vs.85%29.aspx) is therefore not enforced.
 
-For **both** Workgroup and Domain (check this!) joined machines the Remote Registry service must be started and the Windows Firewall rule groups below must be enabled, most simply using the "Allow and app or feature through Windows Firewall" wizard.
+For **both** Workgroup and Domain joined clients the `Remote Registry` service must be started and the Windows Firewall rule groups below must be enabled, most simply using the "Allow and app or feature through Windows Firewall" wizard.
 
 1. Windows Management Instrumentation (WMI)
 2. Remote Event Log Management
 
+Servers may have some or all of these enabled by default.
+
 ## Changelog
-	1.2
-	
-	
+    1.2
+    Add Set-PowerStandbyOptions Set-RemoteDesktopOptions Import-RegistryHive Remove-RegistryHive cmdlets
+    
     1.1
     Fix PowerShell 2.0 compatibility in the module manifest
     Fix errors when Get-LocalGroup and Get-LocalGroupMember returned domain objects under a local user context
