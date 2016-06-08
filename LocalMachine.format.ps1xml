@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
+<!-- LocalMachine v1.2 (c) Chris Redit -->
 <Configuration>
     <SelectionSets>
         <SelectionSet>
@@ -50,7 +51,7 @@
             </TableControl>
         </View>
         <View>
-            <!-- Remove the "Members" property from display as listing Domain objects causes errors under a local account -->
+            <!-- Remove the "Members" property from display as listing Domain objects causes errors under a local context -->
             <Name>GroupPrincipalList</Name>
             <ViewSelectedBy>
                 <TypeName>System.DirectoryServices.AccountManagement.GroupPrincipal</TypeName>

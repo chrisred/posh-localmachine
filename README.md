@@ -40,7 +40,7 @@ In a Workgroup WinRM it is disabled by default, to enable and test run the follo
 
 The `trustedhosts` key can be a wildcard or a comma separated list of ip addresses or hostnames.
 
-In a Domain WinRM will need to be enabled for clients, for servers it should be enabled by default.
+In a Domain WinRM will need to be enabled for clients, but without the need for the `trustedhosts` key modification. For servers WinRM should be enabled by default.
 
 ### Remoting without WinRM ###
 
@@ -48,10 +48,10 @@ In a Workgroup the following options are available to get the `-ComputerName` pa
 
 * Using the built-in `Administrator` account with identical credentials on the executing and target machines.
 * A user created administrator account with identical credentials and UAC disabled on any target machines.
-* A user created administrator account with identical credentials, UAC enabled and the following registry edit to disable [Remote UAC](https://msdn.microsoft.com/en-us/library/windows/desktop/aa826699%28v=vs.85%29.aspx) on any target machines.
+* A user created administrator account with identical credentials, UAC enabled and the following registry edit to disable [Remote UAC](https://msdn.microsoft.com/en-gb/library/windows/desktop/aa826699%28v=vs.85%29.aspx) on any target machines.
 `New-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'LocalAccountTokenFilterPolicy' -Value 1 -PropertyType 'DWORD'`
 
-In a Domain remote connections using **domain accounts** are not subject to UAC token filtering and [Remote UAC](https://msdn.microsoft.com/en-us/library/windows/desktop/aa826699%28v=vs.85%29.aspx) is therefore not enforced.
+In a Domain remote connections using **domain accounts** are not subject to UAC token filtering and [Remote UAC](https://msdn.microsoft.com/en-gb/library/windows/desktop/aa826699%28v=vs.85%29.aspx) is therefore not enforced.
 
 For **both** Workgroup and Domain joined clients the `Remote Registry` service must be started and the Windows Firewall rule groups below must be enabled, most simply using the "Allow and app or feature through Windows Firewall" wizard.
 
@@ -61,8 +61,9 @@ For **both** Workgroup and Domain joined clients the `Remote Registry` service m
 Servers may have some or all of these enabled by default.
 
 ## Changelog
-    1.2
+    1.2 (06/2016)
     Add Set-PowerStandbyOptions Set-RemoteDesktopOptions Import-RegistryHive Remove-RegistryHive cmdlets
+    Fix Remove-LocalGroupMember can now remove members from a Domain context with DOMAIN\Member format
     
     1.1
     Fix PowerShell 2.0 compatibility in the module manifest

@@ -1,3 +1,5 @@
+# LocalMachine v1.2 (c) Chris Redit
+
 Add-Type -AssemblyName System.DirectoryServices.AccountManagement
 
 Function New-LocalUser
@@ -695,11 +697,11 @@ Function Remove-LocalGroupMember
     .DESCRIPTION
         The Remove-LocalGroupMember cmdlet removes one or more members from a local group. Use DOMAIN\Member to remove Domain context users or groups.
         
-        The Identity parameter specifies the object using the SAMAccountName or the DOMAIN\User format for Domain objects.
+        The Identity parameter specifies the object using the SAMAccountName or SID.
     .PARAMETER Identity
         Specifies a group object by using the SAMAccountName or the SID.
     .PARAMETER Members
-        Specifies a set of members in a comma-separated list to remove from the group. The DOMAIN\User format can be used to remove members in a Domain context.
+        Specifies a set of members in a comma-separated list to remove from the group. The DOMAIN\Member format can be used to remove members in a Domain context.
     .PARAMETER ComputerName
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
@@ -735,7 +737,7 @@ Function Remove-LocalGroupMember
             {
                 foreach ($Member in $Members)
                 {
-                    # check for valid DOMAIN\User logon name format, matches a valid NETBIOS domain name and user name
+                    # check for valid DOMAIN\User logon name format, matches a valid NETBIOS domain name and SAMAccountName
                     # https://msdn.microsoft.com/en-us/library/bb726984.aspx https://support.microsoft.com/en-us/kb/909264
                     if ($Member -match '\A([^"/\\\:\|\*\?<>]+)\\([^"/\\\[\]\:;\|=,\+\*\?<>]+)\z')
                     {
@@ -1147,11 +1149,11 @@ Function Set-PowerStandbyOptions
     .PARAMETER Active
         Specifies the active power plan.
     .PARAMETER SleepAfter
-        Specifies the idle time in minuets before the machine will sleep, 0 will set "Never".
+        Specifies the idle time in minutes before the machine will sleep, 0 will set "Never".
     .PARAMETER HibernateAfter
-        Specifies the idle time in minuets before the machine will hibernate, 0 will set "Never".
+        Specifies the idle time in minutes before the machine will hibernate, 0 will set "Never".
     .PARAMETER TurnOffDisplayAfter
-        Specifies the idle time in minuets before the display will sleep, 0 will set "Never".
+        Specifies the idle time in minutes before the display will sleep, 0 will set "Never".
     .PARAMETER Battery
         Applies the settings to the DC power plan type (on battery).
     .PARAMETER ComputerName
@@ -1211,7 +1213,7 @@ Function Set-PowerStandbyOptions
             else
             {
                 Write-Error "Cannot find a power plan named '$Name' on '$ComputerName'."
-                # stop execution here
+                # stop function execution here
                 return $null
             }
             
