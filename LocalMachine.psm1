@@ -621,7 +621,7 @@ Function Get-LocalGroupMember
         
         The Identity parameter specifies the object using the SAMAccountName or the SID.
     .PARAMETER Identity
-        Specifies a group object by using the SAMAccountName or the SID.
+        Specifies a group member by using the SAMAccountName or the SID.
     .PARAMETER ComputerName
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
@@ -691,15 +691,15 @@ Function Remove-LocalGroupMember
 {
     <#
     .SYNOPSIS
-        Remove one or more users from a local group.
+        Remove one or more members from a local group.
     .DESCRIPTION
-        The Remove-LocalGroupMember cmdlet removes one or more users from a local group.
+        The Remove-LocalGroupMember cmdlet removes one or more members from a local group. Use DOMAIN\Member to remove Domain context users or groups.
         
-        The Identity parameter specifies the object using the SAMAccountName or the SID.
+        The Identity parameter specifies the object using the SAMAccountName or the DOMAIN\User format for Domain objects.
     .PARAMETER Identity
         Specifies a group object by using the SAMAccountName or the SID.
     .PARAMETER Members
-        Specifies a set of user objects in a comma-separated list to remove from the group.
+        Specifies a set of members in a comma-separated list to remove from the group. The DOMAIN\User format can be used to remove members in a Domain context.
     .PARAMETER ComputerName
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
@@ -710,6 +710,8 @@ Function Remove-LocalGroupMember
         Remove-LocalGroupMember -Identity Administrators -Members John,Paul,Simon
     .EXAMPLE
         'Backup Operators','Remote Desktop Users' | Remove-LocalGroupMember -Members John,Paul
+    .EXAMPLE
+        Remove-LocalGroupMember -Identity Administrators -Members John,Paul,'EXAMPLE\Domain Users'
     #>
     [CmdletBinding()]
     Param(
@@ -733,30 +735,35 @@ Function Remove-LocalGroupMember
             {
                 foreach ($Member in $Members)
                 {
-                    $User = [DirectoryServices.AccountManagement.UserPrincipal]::FindByIdentity($Context, $Member)
-                    if ($User -ne $null)
+                    # check for valid DOMAIN\User logon name format, matches a valid NETBIOS domain name and user name
+                    # https://msdn.microsoft.com/en-us/library/bb726984.aspx https://support.microsoft.com/en-us/kb/909264
+                    if ($Member -match '\A([^"/\\\:\|\*\?<>]+)\\([^"/\\\[\]\:;\|=,\+\*\?<>]+)\z')
                     {
-                        try
-                        {
-                            # the DirectoryServices.AccountManagement object raises: Exception "The network path was not found." on domain objects as a local user
-                            $Group.GetUnderlyingObject().Remove($User.GetUnderlyingObject().Path)
-                        }
-                        catch [Runtime.InteropServices.COMException]
-                        {
-                            if ($_.Exception.Message.Contains('The specified account name is already a member of the group.'))
-                            {
-                                # create a non-terminating error if a user is already a memeber of the group
-                                Write-Error "Cannot remove object $Member from group '$Identity'. $($_.Exception.Message)"
-                            }
-                            else
-                            {
-                                throw
-                            }
-                        }
+                        $ContextString = $Matches[1]
+                        $ObjectString = $Matches[2]
                     }
                     else
                     {
-                        Write-Error "Cannot find an object with identity '$Member' on '$ComputerName'. This object was not removed."
+                        $ContextString = $ComputerName
+                        $ObjectString = $Member
+                    }
+
+                    try
+                    {
+                        # create a string reference for the object to be removed as this is the simplest way to handle removing domain context objects
+                        $Group.GetUnderlyingObject().Remove("WinNT://$ContextString/$ObjectString")
+                    }
+                    catch [Runtime.InteropServices.COMException]
+                    {
+                        if ($_.Exception.Message.Contains('A member could not be added to or removed from the local group because the member does not exist.'))
+                        {
+                            # create a non-terminating error if the object is not a member of the group
+                            Write-Error "Cannot remove object '$Member' from group '$Identity'. $($_.Exception.Message)"
+                        }
+                        else
+                        {
+                            throw
+                        }
                     }
                 }
 
