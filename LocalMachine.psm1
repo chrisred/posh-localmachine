@@ -14,6 +14,7 @@ Function New-LocalUser
         Specifies the user name for the new local user.
     .PARAMETER AccountPassword
         Alias Password
+        Specifies the password to set as a secure string, this cannot be an empty string. ConvertTo-SecureString and Get-Credential can create a secure string object. Set-LocalAccountPassword can set a blank password on an existing account.
     .PARAMETER ProfilePath
         Specifies a path for the user profile, e.g. 'C:\Profiles\John'.
     .PARAMETER LogonScript
@@ -31,11 +32,11 @@ Function New-LocalUser
         A non-terminating error if the object already exists.
         A terminating error if invalid data is provided, user permissions are incorrect or the SAM database cannot be accessed.
     .EXAMPLE
-        New-LocalUser -SamAccountName John -AccountPassword Password01 -FullName 'John Smith' -UserMustChangePasswordOnNextLogin $true
+        New-LocalUser -SamAccountName John -AccountPassword (ConvertTo-SecureString 'Password01' -AsPlainText -Force) -FullName 'John Smith' -UserMustChangePasswordOnNextLogin $true
     .EXAMPLE
-        New-LocalUser -SamAccountName John -AccountPassword Password01 -HomeFolderLocalPath 'C:\Folders\John'
+        New-LocalUser -SamAccountName John -AccountPassword (ConvertTo-SecureString 'Password01' -AsPlainText -Force) -HomeFolderLocalPath 'C:\Folders\John' -PasswordNeverExpires $true
     .EXAMPLE
-        New-LocalUser -SamAccountName John -AccountPassword Password01 -HomeFolderDrive 'H:' -HomeFolderPath '\\SERVER01\Folders\John'
+        New-LocalUser -SamAccountName John -AccountPassword (ConvertTo-SecureString 'Password01' -AsPlainText -Force) -HomeFolderDrive 'H:' -HomeFolderPath '\\SERVER01\Folders\John'
     #>
     [CmdletBinding(DefaultParametersetName='LocalPath')]
     Param(
@@ -46,9 +47,8 @@ Function New-LocalUser
         [String]$SamAccountName,
         [Parameter(Position=1,Mandatory=$true,ValueFromPipelineByPropertyName=$True,ParameterSetName='LocalPath')]
         [Parameter(Position=1,Mandatory=$true,ValueFromPipelineByPropertyName=$True,ParameterSetName='RemotePath')]
-        [ValidateLength(6,127)]
         [Alias('Password')]
-        [String]$AccountPassword,
+        [Security.SecureString]$AccountPassword,
         [Parameter(ValueFromPipelineByPropertyName=$True,ParameterSetName='LocalPath')]
         [Parameter(ValueFromPipelineByPropertyName=$True,ParameterSetName='RemotePath')]
         [String]$FullName = '',
@@ -92,7 +92,12 @@ Function New-LocalUser
             
             $User = New-Object DirectoryServices.AccountManagement.UserPrincipal($Context)
             $User.SAMAccountName = $SAMAccountName
-            $User.SetPassword($AccountPassword)
+
+            # SetPassword() only accepts plain text input
+            $BinaryString = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($AccountPassword)
+            $User.SetPassword([System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BinaryString))
+            Remove-Variable -Name BinaryString
+
             $User.DisplayName = $FullName
             $User.Description = $Description
             $User.ScriptPath = $LogonScript
@@ -392,9 +397,13 @@ Function Set-LocalAccountPassword
     .SYNOPSIS
         Change a user account password.
     .DESCRIPTION
-        The Set-LocalAccountPassword modifies the password for a local user account.
+        The Set-LocalAccountPassword modifies the password for a local user account. The password must be defined as a secure string object.
     .PARAMETER Identity
         Specifies a user object by using the SAMAccountName or the SID.
+    .PARAMETER AccountPassword
+        Specifies the password to set as a secure string, this cannot be an empty string.
+    .PARAMETER NoPassword
+        Indicates that the password for this user account will be blank.
     .PARAMETER ComputerName
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
@@ -402,16 +411,23 @@ Function Set-LocalAccountPassword
         A non-terminating error if the object cannot be found.
         A terminating error user permissions are incorrect or the SAM database cannot be accessed.
     .EXAMPLE
-        Remove-LocalUser -Identity John
+        Set-LocalAccountPassword -Identity John -AccountPassword (ConvertTo-SecureString 'Password01' -AsPlainText -Force)
+    .EXAMPLE
+        Set-LocalAccountPassword -Identity John -NoPassword
     #>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParametersetName='Password')]
     Param(
-        [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True)]
+        [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True,ParameterSetName='Password')]
+        [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True,ParameterSetName='NoPassword')]
         [Alias('Name')]
         [String]$Identity,
-        [Parameter(Position=1,Mandatory=$true)][ValidateLength(6,127)]
+        [Parameter(Position=1,Mandatory=$true,ParameterSetName='Password')]
         [Alias('Password')]
-        [String]$AccountPassword,
+        [Security.SecureString]$AccountPassword,
+        [Parameter(Mandatory=$true,ParameterSetName='NoPassword')]
+        [Switch]$NoPassword,
+        [Parameter(ParameterSetName='Password')]
+        [Parameter(ParameterSetName='NoPassword')]
         [String]$ComputerName = $env:COMPUTERNAME
     )
 
@@ -428,7 +444,19 @@ Function Set-LocalAccountPassword
 
             if ($User -ne $null)
             {
-                $User.SetPassword($AccountPassword)
+                if ($PSBoundParameters.ContainsKey('AccountPassword'))
+                {
+                    # SetPassword() only accepts plain text input
+                    $BinaryString = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($AccountPassword)
+                    $User.SetPassword([System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BinaryString))
+                    Remove-Variable -Name BinaryString
+                }
+
+                if ($PSBoundParameters.ContainsKey('NoPassword'))
+                {
+                    $User.SetPassword('')
+                }
+                
                 $User.Save()
                 $User.Dispose()
             }
@@ -455,11 +483,15 @@ Function Test-LocalAccountPassword
     .SYNOPSIS
         Test a local account password.
     .DESCRIPTION
-        The Remove-LocalUser cmdlet compares a the current password to a given password. This can be useful for identifying insecure common passwords.
+        The Test-LocalAccountPassword cmdlet compares a the current password to a given password. This can be useful for identifying insecure common passwords. The password must be defined as a secure string object.
         
         The AccountPassword parameter specifies the given password. This is then used to try and reset the account password, success shows the password to be correct.
     .PARAMETER Identity
         Specifies a user object by using the SAMAccountName or the SID.
+    .PARAMETER AccountPassword
+        Specifies the password to test as a secure string, this cannot be an empty string.
+    .PARAMETER NoPassword
+        Indicates that the password to test will be blank.
     .PARAMETER ComputerName
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
@@ -468,20 +500,25 @@ Function Test-LocalAccountPassword
         A non-terminating error if the object cannot be found.
         A terminating error if user permissions are incorrect or the SAM database cannot be accessed.
     .EXAMPLE
-        Test-LocaUserPassword -Identity John -AccountPassword Password01
+        Test-LocaUserPassword -Identity John -AccountPassword (ConvertTo-SecureString 'Password01' -AsPlainText -Force)
+    .EXAMPLE
+        Test-LocaUserPassword -Identity John -NoPassword
     #>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParametersetName='Password')]
     Param(
-        [Parameter(Position=0,Mandatory=$true)]
-        [ValidateLength(1,20)]
+        [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True,ParameterSetName='Password')]
+        [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True,ParameterSetName='NoPassword')]
         [String]$Identity,
-        [Parameter(Position=1,Mandatory=$true)]
-        [AllowEmptyString()]
+        [Parameter(Position=1,Mandatory=$true,ParameterSetName='Password')]
         [Alias('Password')]
-        [String]$AccountPassword,
+        [Security.SecureString]$AccountPassword,
+        [Parameter(Mandatory=$true,ParameterSetName='NoPassword')]
+        [Switch]$NoPassword,
+        [Parameter(ParameterSetName='Password')]
+        [Parameter(ParameterSetName='NoPassword')]
         [String]$ComputerName = $env:COMPUTERNAME
     )
-
+    
     $Context = New-Object DirectoryServices.AccountManagement.PrincipalContext('Machine',$ComputerName)
 
     try
@@ -490,8 +527,23 @@ Function Test-LocalAccountPassword
     
         if ($User -ne $null)
         {
+            if ($PSBoundParameters.ContainsKey('AccountPassword'))
+            {
+                # ChangePassword() only accepts plain text input
+                $BinaryString = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($AccountPassword)
+                $User.ChangePassword(
+                    [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BinaryString),
+                    [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BinaryString)
+                )
+                Remove-Variable -Name BinaryString
+            }
+
+            if ($PSBoundParameters.ContainsKey('NoPassword'))
+            {
+                $User.ChangePassword('','')
+            }
+
             # if an exception is raised then the password was incorrect or violates a password policy
-            $User.ChangePassword($AccountPassword,$AccountPassword)
             return $true
         }
         else
@@ -509,7 +561,6 @@ Function Test-LocalAccountPassword
         }
         elseif ($_.Exception.Message.Contains('The specified network password is not correct.'))
         {
-            # message here would contain 'The specified network password is not correct.'
             return $false
         }
 
