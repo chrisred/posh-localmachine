@@ -575,13 +575,13 @@ Function Add-LocalGroupMember
     .SYNOPSIS
         Add one or more members to a local group.
     .DESCRIPTION
-        The Add-LocalGroupMember cmdlet adds one or more members to a local group.
+        The Add-LocalGroupMember cmdlet adds one or more members to a local group. Use DOMAIN\Member to add domain context users or groups.
         
         The Identity parameter specifies the object using the SAMAccountName or the SID.
     .PARAMETER Identity
         Specifies a group object by using the SAMAccountName or the SID.
     .PARAMETER Members
-        Specifies a set of user objects in a comma-separated list to add to a group.
+        Specifies a set of user objects in a comma-separated list to add to a group. The DOMAIN\Member format can be used to add members from a domain context, this requires the machine to be a member of the specified domain.
     .PARAMETER ComputerName
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
@@ -592,13 +592,15 @@ Function Add-LocalGroupMember
         Add-LocalGroupMember -Identity Administrators -Members John,Paul,Simon
     .EXAMPLE
         'Backup Operators','Remote Desktop Users' | Add-LocalGroupMember -Members John,Paul
+    .EXAMPLE
+        Add-LocalGroupMember -Identity Administrators -Members John,Paul,'EXAMPLE\Domain Users'
     #>
     [CmdletBinding()]
     Param(
         [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True)]
         [String]$Identity,
         [Parameter(Position=1,Mandatory=$true)]
-        [Array]$Members,
+        [Array]$Members = @{},
         [String]$ComputerName = $env:COMPUTERNAME
     )
     
@@ -617,30 +619,36 @@ Function Add-LocalGroupMember
             {
                 foreach ($Member in $Members)
                 {
-                    $User = [DirectoryServices.AccountManagement.UserPrincipal]::FindByIdentity($Context, $Member)
-                    if ($User -ne $null)
+                    # check for valid DOMAIN\User logon name format, matches a valid NETBIOS domain name and SAMAccountName
+                    # https://msdn.microsoft.com/en-us/library/bb726984.aspx https://support.microsoft.com/en-us/kb/909264
+                    if ($Member -match '\A([^"/\\\:\|\*\?<>]+)\\([^"/\\\[\]\:;\|=,\+\*\?<>]+)\z')
                     {
-                        try
-                        {
-                            # the DirectoryServices.AccountManagement object raises: Exception "The network path was not found." on domain objects as a local user
-                            $Group.GetUnderlyingObject().Add($User.GetUnderlyingObject().Path)
-                        }
-                        catch [Runtime.InteropServices.COMException]
-                        {
-                            if ($_.Exception.Message.Contains('The specified account name is already a member of the group.'))
-                            {
-                                # create a non-terminating error if a user is already a memeber of the group
-                                Write-Error "Cannot add object $Member to group '$Identity'. $($_.Exception.Message)"
-                            }
-                            else
-                            {
-                                throw
-                            }
-                        }
+                        $ContextString = $Matches[1]
+                        $ObjectString = $Matches[2]
                     }
                     else
                     {
-                        Write-Error "Cannot find an object with identity '$Member' on '$ComputerName'. This object was not added."
+                        $ContextString = $ComputerName
+                        $ObjectString = $Member
+                    }
+
+                    try
+                    {
+                        # create a string reference for the object to be added as this is the simplest way to handle adding domain context objects
+                        $Group.GetUnderlyingObject().Add("WinNT://$ContextString/$ObjectString")
+                    }
+                    catch [Runtime.InteropServices.COMException]
+                    {
+                        if ($_.Exception.Message.Contains('The specified account name is already a member of the group.') -or `
+                            $_.Exception.Message.Contains('A member could not be added to or removed from the local group because the member does not exist.'))
+                        {
+                            # create a non-terminating error if the object does not exist or is already a member of the group
+                            Write-Error "Cannot add object $Member to group '$Identity'. $($_.Exception.Message)"
+                        }
+                        else
+                        {
+                            throw
+                        }
                     }
                 }
 
@@ -714,7 +722,7 @@ Function Get-LocalGroupMember
                 {
                     if ($_.Exception.Message.Contains('The network path was not found.'))
                     {
-                        Write-Warning "This group contains objects from a Domain context. To return the members of this group as AccountManagement.Principal objects a user with read permissions in the domain is required."
+                        Write-Warning "This group contains objects from a domain context. To return the members of this group as AccountManagement.Principal objects a user with read permissions in the domain is required."
                         $Group.GetUnderlyingObject().Members() | ForEach-Object { ([ADSI]$_).InvokeGet('Name') }
                     }
                     else
@@ -746,13 +754,13 @@ Function Remove-LocalGroupMember
     .SYNOPSIS
         Remove one or more members from a local group.
     .DESCRIPTION
-        The Remove-LocalGroupMember cmdlet removes one or more members from a local group. Use DOMAIN\Member to remove Domain context users or groups.
+        The Remove-LocalGroupMember cmdlet removes one or more members from a local group. Use DOMAIN\Member to remove domain context users or groups.
         
         The Identity parameter specifies the object using the SAMAccountName or SID.
     .PARAMETER Identity
         Specifies a group object by using the SAMAccountName or the SID.
     .PARAMETER Members
-        Specifies a set of members in a comma-separated list to remove from the group. The DOMAIN\Member format can be used to remove members in a Domain context.
+        Specifies a set of members in a comma-separated list to remove from the group. The DOMAIN\Member format can be used to remove members from a domain context.
     .PARAMETER ComputerName
         Runs the cmdlet on the specified computer. The default is the local computer. To successfully run on a remote computer the account executing the cmdlet must have permissions on both machines.
     .OUTPUTS
@@ -768,7 +776,9 @@ Function Remove-LocalGroupMember
     #>
     [CmdletBinding()]
     Param(
-        [String][Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True)]$Identity = '',
+        [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True)]
+        [String]$Identity = '',
+        [Parameter(Position=1,Mandatory=$true)]
         [Array]$Members = @{},
         [String]$ComputerName = $env:COMPUTERNAME
     )
@@ -788,8 +798,6 @@ Function Remove-LocalGroupMember
             {
                 foreach ($Member in $Members)
                 {
-                    # check for valid DOMAIN\User logon name format, matches a valid NETBIOS domain name and SAMAccountName
-                    # https://msdn.microsoft.com/en-us/library/bb726984.aspx https://support.microsoft.com/en-us/kb/909264
                     if ($Member -match '\A([^"/\\\:\|\*\?<>]+)\\([^"/\\\[\]\:;\|=,\+\*\?<>]+)\z')
                     {
                         $ContextString = $Matches[1]
@@ -803,7 +811,6 @@ Function Remove-LocalGroupMember
 
                     try
                     {
-                        # create a string reference for the object to be removed as this is the simplest way to handle removing domain context objects
                         $Group.GetUnderlyingObject().Remove("WinNT://$ContextString/$ObjectString")
                     }
                     catch [Runtime.InteropServices.COMException]
