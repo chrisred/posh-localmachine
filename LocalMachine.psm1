@@ -1212,6 +1212,10 @@ Function Set-PowerStandbyOptions
         Specifies the idle time in minutes before the machine will hibernate, 0 will set "Never".
     .PARAMETER TurnOffDisplayAfter
         Specifies the idle time in minutes before the display will sleep, 0 will set "Never".
+    .PARAMETER LidCloseAction
+        Specifies the action when closing a laptop lid, options are: "Do nothing", "Sleep", "Hibernate", "Shut down"
+    .PARAMETER PowerButtonAction
+        Specifies the action when pressing the power button, options are: "Do nothing", "Sleep", "Hibernate", "Shut down"
     .PARAMETER Battery
         Applies the settings to the DC power plan type (on battery).
     .PARAMETER ComputerName
@@ -1241,6 +1245,14 @@ Function Set-PowerStandbyOptions
         [Parameter(ParameterSetName='Named')]
         [Parameter(ParameterSetName='Active')]
         [Int]$TurnOffDisplayAfter,
+        [Parameter(ParameterSetName='Named')]
+        [Parameter(ParameterSetName='Active')]
+        [ValidateSet('Do nothing','Sleep','Hibernate','Shut down')]
+        [String]$LidCloseAction,
+        [Parameter(ParameterSetName='Named')]
+        [Parameter(ParameterSetName='Active')]
+        [ValidateSet('Do nothing','Sleep','Hibernate','Shut down')]
+        [String]$PowerButtonAction,
         [Parameter(ParameterSetName='Named')]
         [Parameter(ParameterSetName='Active')]
         [Switch]$Battery,
@@ -1279,6 +1291,9 @@ Function Set-PowerStandbyOptions
             $PowerPlanType = 'AC'
             if ($Battery) {$PowerPlanType = 'DC'}
             
+            # map action friendly name to the index value
+            $PowerActions = @{'Do nothing' = 0; 'Sleep' = 1; 'Hibernate' = 2; 'Shut down' = 3}
+            
             if ($PSBoundParameters.ContainsKey('SleepAfter'))
             {
                 $PowerSettingGuid = '29f6c1db-86da-48c5-9fdb-f2b67b1f44da' # Sleep after
@@ -1290,7 +1305,7 @@ Function Set-PowerStandbyOptions
                 $PowerSettingValue = ($SleepAfter * 60)
                 Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
             }
-        
+            
             if ($PSBoundParameters.ContainsKey('HibernateAfter'))
             {
                 $PowerSettingGuid = '9d7815a6-7ee4-497e-8888-515a05f02364' # Hibernate after
@@ -1312,6 +1327,30 @@ Function Set-PowerStandbyOptions
                     -ComputerName $ComputerName
             
                 $PowerSettingValue = ($TurnOffDisplayAfter * 60)
+                Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
+            }
+
+            if ($PSBoundParameters.ContainsKey('LidCloseAction'))
+            {
+                $PowerSettingGuid = '5ca83367-6e45-459f-a27b-476b1d01c936' # Lid close action
+                $PowerSettingDataIndex = Get-WmiObject `
+                    -Namespace "root\cimv2\power" `
+                    -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
+                    -ComputerName $ComputerName
+            
+                $PowerSettingValue = $PowerActions.Item($LidCloseAction)
+                Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
+            }
+
+            if ($PSBoundParameters.ContainsKey('PowerButtonAction'))
+            {
+                $PowerSettingGuid = '7648efa3-dd9c-4e3e-b566-50f929386280' # Power button action
+                $PowerSettingDataIndex = Get-WmiObject `
+                    -Namespace "root\cimv2\power" `
+                    -Query "SELECT * FROM Win32_PowerSettingDataIndex WHERE InstanceID = 'Microsoft:PowerSettingDataIndex\\{$PowerPlanGuid}\\$PowerPlanType\\{$PowerSettingGuid}'" `
+                    -ComputerName $ComputerName
+            
+                $PowerSettingValue = $PowerActions.Item($PowerButtonAction)
                 Set-WmiInstance -InputObject $PowerSettingDataIndex -Arguments @{SettingIndexValue=$PowerSettingValue} | Out-Null
             }
         }
