@@ -53,7 +53,7 @@ In a Workgroup the following options are available to get the `-ComputerName` pa
 
 In a Domain remote connections using **domain accounts** are not subject to UAC token filtering and [Remote UAC](https://msdn.microsoft.com/en-gb/library/windows/desktop/aa826699%28v=vs.85%29.aspx) is therefore not enforced.
 
-For **both** Workgroup and Domain joined clients the `Remote Registry` service must be started and the Windows Firewall rule groups below must be enabled, most simply using the "Allow and app or feature through Windows Firewall" wizard.
+For **both** Workgroup and Domain joined clients the `Remote Registry` service must be started and the Windows Firewall rule groups below must be enabled, most simply using the "Allow an app or feature through Windows Firewall" wizard.
 
 1. Windows Management Instrumentation (WMI)
 2. Remote Event Log Management
@@ -61,14 +61,19 @@ For **both** Workgroup and Domain joined clients the `Remote Registry` service m
 Servers may have some or all of these enabled by default.
 
 ## Changelog
-    1.2 (06/2016)
+    1.3 (2016-12-11)
+    Add Power button and lid actions added to Set-PowerStandbyOptions 
+    Fix Add-LocalGroupMember can now add members from a domain context with DOMAIN\Member format
+    Fix Password parameters now only accept "Security.SecureString" as an input type (in compliance with PSScriptAnalyzer)
+	
+    1.2 (2016-06-08)
     Add Set-PowerStandbyOptions Set-RemoteDesktopOptions Import-RegistryHive Remove-RegistryHive cmdlets
-    Fix Remove-LocalGroupMember can now remove members from a Domain context with DOMAIN\Member format
+    Fix Remove-LocalGroupMember can now remove members from a domain context with DOMAIN\Member format
     
-    1.1
+    1.1 (2016-02-08)
     Fix PowerShell 2.0 compatibility in the module manifest
     Fix errors when Get-LocalGroup and Get-LocalGroupMember returned domain objects under a local user context
     Fix detection of bound parameters to improve compatibility across PowerShell versions
     
-    1.0
+    1.0 (2016-02-02)
     Initial release

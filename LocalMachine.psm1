@@ -694,7 +694,7 @@ Function Get-LocalGroupMember
     [CmdletBinding()]
     Param(
         [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True)]
-        [String]$Identity = '',
+        [String]$Identity,
         [String]$ComputerName = $env:COMPUTERNAME
     )
     
@@ -777,7 +777,7 @@ Function Remove-LocalGroupMember
     [CmdletBinding()]
     Param(
         [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$True)]
-        [String]$Identity = '',
+        [String]$Identity,
         [Parameter(Position=1,Mandatory=$true)]
         [Array]$Members = @{},
         [String]$ComputerName = $env:COMPUTERNAME
