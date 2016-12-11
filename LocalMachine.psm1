@@ -1,4 +1,4 @@
-# LocalMachine v1.2 (c) Chris Redit
+# LocalMachine v1.3 (c) Chris Redit
 
 Add-Type -AssemblyName System.DirectoryServices.AccountManagement
 
